@@ -82,12 +82,20 @@ export async function getVideoInfo(url: string): Promise<VideoInfoResponse> {
 }
 
 export function downloadFile(url: string, filename: string) {
-  const link = document.createElement("a")
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  try {
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename.replace(/[^a-zA-Z0-9\s.-]/g, "") // Sanitize filename
+    link.setAttribute("target", "_blank")
+    link.setAttribute("rel", "noopener noreferrer")
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    console.log("[v0] File download initiated:", filename)
+  } catch (error) {
+    console.error("[v0] Download failed:", error)
+    throw new Error("Download failed. Please try again.")
+  }
 }
 
 export function isValidYouTubeUrl(url: string): boolean {

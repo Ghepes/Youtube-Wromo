@@ -129,13 +129,23 @@ export function ConverterForm({ onDownloadStart }: ConverterFormProps) {
 
   const handleDownload = () => {
     if (result) {
-      // Create a temporary download link
-      const link = document.createElement("a")
-      link.href = result.downloadUrl
-      link.download = `${result.title}.${format}`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      try {
+        // Create a temporary download link
+        const link = document.createElement("a")
+        link.href = result.downloadUrl
+        link.download = `${result.title.replace(/[^a-zA-Z0-9\s-]/g, "")}.${format}`
+        link.setAttribute("target", "_blank")
+        link.setAttribute("rel", "noopener noreferrer")
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+
+        // Show success feedback
+        console.log("[v0] Download initiated successfully")
+      } catch (error) {
+        console.error("[v0] Download error:", error)
+        setError("Failed to start download. Please try again.")
+      }
     }
   }
 
