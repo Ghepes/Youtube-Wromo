@@ -90,6 +90,38 @@ export function ConverterForm({ onDownloadStart }: ConverterFormProps) {
         throw new Error(convertResponse.error || "Conversion failed")
       }
 
+      console.log("[v0] Storing file in IndexedDB...")
+
+      // Convert base64 back to blob
+      const binaryString = atob(convertResponse.data.blobData)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      const blob = new Blob([bytes], {
+        type: format === "mp3" ? "audio/mpeg" : "video/mp4",
+      })
+
+      // Extract file ID from download URL
+      const fileId = convertResponse.data.downloadUrl.split("/").pop()
+      if (fileId) {
+        await videoStorage.storeFile({
+          id: fileId,
+          filename: convertResponse.data.filename,
+          blob,
+          metadata: {
+            title: convertResponse.data.title,
+            format,
+            quality,
+            fileSize: convertResponse.data.fileSize,
+            thumbnail: convertResponse.data.thumbnail,
+            duration: convertResponse.data.duration,
+            createdAt: Date.now(),
+          },
+        })
+        console.log("[v0] File stored successfully in IndexedDB:", fileId)
+      }
+
       const conversionResult = {
         title: convertResponse.data.title,
         thumbnail: convertResponse.data.thumbnail,
@@ -114,6 +146,7 @@ export function ConverterForm({ onDownloadStart }: ConverterFormProps) {
         })
       }
     } catch (err) {
+      console.error("[v0] Conversion error:", err)
       setStatus("error")
       setError(err instanceof Error ? err.message : "Failed to convert video. Please try again.")
     }
