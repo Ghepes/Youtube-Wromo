@@ -107,82 +107,44 @@ class VideoStorage {
 
 export const videoStorage = new VideoStorage()
 
-export function createMockMP3(title: string, duration: string): Blob {
-  // Create a minimal MP3 file with proper headers
-  const mp3Header = new Uint8Array([
-    0xff,
-    0xfb,
-    0x90,
-    0x00, // MP3 frame header
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-  ])
+export async function storeRealVideoFile(
+  id: string,
+  filename: string,
+  blob: Blob,
+  metadata: {
+    title: string
+    format: string
+    quality: string
+    fileSize: string
+    thumbnail: string
+    duration: string
+  },
+): Promise<void> {
+  console.log("[v0] Storing real video file in IndexedDB:", filename, blob.size, "bytes")
 
-  // Add some silence data to make it a valid audio file
-  const silenceData = new Uint8Array(1024).fill(0)
-  const combinedData = new Uint8Array(mp3Header.length + silenceData.length)
-  combinedData.set(mp3Header)
-  combinedData.set(silenceData, mp3Header.length)
+  const file: StoredFile = {
+    id,
+    filename,
+    blob,
+    metadata: {
+      ...metadata,
+      createdAt: Date.now(),
+    },
+  }
 
-  return new Blob([combinedData], { type: "audio/mpeg" })
+  await videoStorage.storeFile(file)
+  console.log("[v0] Successfully stored file in IndexedDB")
 }
 
-export function createMockMP4(title: string, duration: string): Blob {
-  // Create a minimal MP4 file with proper headers
-  const mp4Header = new Uint8Array([
-    0x00,
-    0x00,
-    0x00,
-    0x20,
-    0x66,
-    0x74,
-    0x79,
-    0x70, // ftyp box
-    0x69,
-    0x73,
-    0x6f,
-    0x6d,
-    0x00,
-    0x00,
-    0x02,
-    0x00,
-    0x69,
-    0x73,
-    0x6f,
-    0x6d,
-    0x69,
-    0x73,
-    0x6f,
-    0x32,
-    0x61,
-    0x76,
-    0x63,
-    0x31,
-    0x6d,
-    0x70,
-    0x34,
-    0x31,
-  ])
+export async function getRealVideoFile(id: string): Promise<Blob | null> {
+  console.log("[v0] Retrieving real video file from IndexedDB:", id)
 
-  // Add minimal video data
-  const videoData = new Uint8Array(2048).fill(0)
-  const combinedData = new Uint8Array(mp4Header.length + videoData.length)
-  combinedData.set(mp4Header)
-  combinedData.set(videoData, mp4Header.length)
+  const file = await videoStorage.getFile(id)
+  if (!file) {
+    console.log("[v0] File not found in IndexedDB")
+    return null
+  }
 
-  return new Blob([combinedData], { type: "video/mp4" })
+  console.log("[v0] Retrieved file:", file.filename, file.blob.size, "bytes")
+  return file.blob
 }
