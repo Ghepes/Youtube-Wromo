@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Music, Video, Download, Loader2, AlertCircle, CheckCircle, Info } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { convertVideo, getVideoInfo, isValidYouTubeUrl } from "@/lib/api"
+import { videoStorage } from "@/lib/indexeddb-storage"
 
 type ConversionStatus = "idle" | "fetching-info" | "processing" | "completed" | "error"
 type FormatType = "mp3" | "mp4"
@@ -127,25 +128,47 @@ export function ConverterForm({ onDownloadStart }: ConverterFormProps) {
     setUrl("")
   }
 
-  const handleDownload = () => {
-    if (result) {
-      try {
-        // Create a temporary download link
-        const link = document.createElement("a")
-        link.href = result.downloadUrl
-        link.download = `${result.title.replace(/[^a-zA-Z0-9\s-]/g, "")}.${format}`
-        link.setAttribute("target", "_blank")
-        link.setAttribute("rel", "noopener noreferrer")
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
+  const handleDownload = async () => {
+    if (!result) return
 
-        // Show success feedback
-        console.log("[v0] Download initiated successfully")
-      } catch (error) {
-        console.error("[v0] Download error:", error)
-        setError("Failed to start download. Please try again.")
+    try {
+      // Extract file ID from download URL
+      const fileId = result.downloadUrl.split("/").pop()
+      if (!fileId) {
+        throw new Error("Invalid download URL")
       }
+
+      console.log("[v0] Starting download from IndexedDB for file:", fileId)
+
+      // Get file from IndexedDB
+      const storedFile = await videoStorage.getFile(fileId)
+      if (!storedFile) {
+        throw new Error("File not found in storage")
+      }
+
+      console.log("[v0] File retrieved from IndexedDB:", storedFile.filename)
+
+      // Create download link with blob URL
+      const blobUrl = URL.createObjectURL(storedFile.blob)
+      const link = document.createElement("a")
+      link.href = blobUrl
+      link.download = storedFile.filename
+      link.style.display = "none"
+
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      // Clean up blob URL after a short delay
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl)
+        console.log("[v0] Blob URL cleaned up")
+      }, 1000)
+
+      console.log("[v0] Download initiated successfully")
+    } catch (error) {
+      console.error("[v0] Download error:", error)
+      setError("Failed to start download. Please try again.")
     }
   }
 

@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+import { videoStorage, createMockMP3, createMockMP4 } from "@/lib/indexeddb-storage"
+
 interface ConvertRequest {
   url: string
   format: "mp3" | "mp4"
@@ -70,14 +72,84 @@ async function getVideoInfo(url: string): Promise<VideoInfo> {
   }
 }
 
-// Mock function to simulate video conversion
-async function convertVideo(url: string, format: "mp3" | "mp4", quality: string): Promise<string> {
-  // In a real implementation, you would use ffmpeg or similar tools
-  // For demo purposes, we'll simulate the conversion process
-  await new Promise((resolve) => setTimeout(resolve, 2000)) // Simulate conversion time
+async function convertVideo(
+  url: string,
+  format: "mp3" | "mp4",
+  quality: string,
+  videoInfo: VideoInfo,
+): Promise<string> {
+  // Simulate conversion time
+  await new Promise((resolve) => setTimeout(resolve, 2000))
 
-  // Return a mock download URL
-  return `/api/download/${Date.now()}.${format}`
+  // Generate unique file ID
+  const fileId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  const filename = `${videoInfo.title.replace(/[^a-zA-Z0-9\s-]/g, "").trim()}.${format}`
+
+  // Create mock file based on format
+  const blob =
+    format === "mp3"
+      ? createMockMP3(videoInfo.title, videoInfo.duration)
+      : createMockMP4(videoInfo.title, videoInfo.duration)
+
+  // Calculate file size based on format and quality
+  let estimatedSize = "5.2 MB"
+  if (format === "mp4") {
+    switch (quality) {
+      case "360":
+        estimatedSize = "15.3 MB"
+        break
+      case "720":
+        estimatedSize = "45.7 MB"
+        break
+      case "1080":
+        estimatedSize = "89.2 MB"
+        break
+      case "4k":
+        estimatedSize = "256.8 MB"
+        break
+      default:
+        estimatedSize = "25.8 MB"
+    }
+  } else {
+    switch (quality) {
+      case "128":
+        estimatedSize = "3.1 MB"
+        break
+      case "192":
+        estimatedSize = "4.6 MB"
+        break
+      case "320":
+        estimatedSize = "7.8 MB"
+        break
+      default:
+        estimatedSize = "5.2 MB"
+    }
+  }
+
+  // Store file in IndexedDB
+  try {
+    await videoStorage.storeFile({
+      id: fileId,
+      filename,
+      blob,
+      metadata: {
+        title: videoInfo.title,
+        format,
+        quality,
+        fileSize: estimatedSize,
+        thumbnail: videoInfo.thumbnail,
+        duration: videoInfo.duration,
+        createdAt: Date.now(),
+      },
+    })
+
+    // Clean up old files
+    await videoStorage.cleanupOldFiles()
+  } catch (error) {
+    console.error("Failed to store file:", error)
+  }
+
+  return `/api/download/${fileId}`
 }
 
 export async function POST(request: NextRequest) {
@@ -103,8 +175,7 @@ export async function POST(request: NextRequest) {
 
     const videoInfo = await getVideoInfo(url)
 
-    // Start conversion process
-    const downloadUrl = await convertVideo(url, format, quality)
+    const downloadUrl = await convertVideo(url, format, quality, videoInfo)
 
     // Calculate estimated file size based on format and quality
     let estimatedSize = "5.2 MB"
